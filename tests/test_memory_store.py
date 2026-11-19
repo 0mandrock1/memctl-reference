@@ -59,6 +59,19 @@ class MemoryStoreTests(unittest.TestCase):
             self.store.supersede(fact_id=old.id, value="stale",
                                  expected_revision=1, request_id="r3")
 
+    def test_supersede_retry_is_idempotent(self):
+        first = self.store.write(topic="a", key="x", value="v1",
+                                 expected_revision=0, request_id="r1")
+        second = self.store.supersede(fact_id=first.id, value="v2",
+                                      expected_revision=1, request_id="r2")
+        retry = self.store.supersede(fact_id=first.id, value="v2",
+                                     expected_revision=1, request_id="r2")
+        self.assertEqual(retry.id, second.id)
+        self.assertEqual(len(self.store.history("a", "x")), 2)
+        with self.assertRaises(IdempotencyConflict):
+            self.store.supersede(fact_id=first.id, value="different",
+                                 expected_revision=1, request_id="r2")
+
     def test_topic_scope_and_literal_search(self):
         self.store.write(topic="a", key="user%key", value="100% coverage",
                          expected_revision=0, request_id="r1")

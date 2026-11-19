@@ -164,8 +164,11 @@ class MemoryStore:
         """Replace the named version only if it is still current."""
         with self._lock:
             old = self._one("SELECT * FROM facts WHERE id=?", (fact_id,))
-            if old is None or not old.active or old.revision != expected_revision:
-                raise StaleRevision("fact_id is no longer the active revision")
+            if old is None or old.revision != expected_revision:
+                raise StaleRevision("unknown fact_id or wrong source revision")
+            # A replay must reach write()'s idempotency receipt, even when the
+            # originally superseded fact is now inactive. Fresh stale writes
+            # still fail the CAS check against the current active revision.
             return self.write(topic=old.topic, key=old.key, value=value,
                               expected_revision=expected_revision,
                               request_id=request_id)
